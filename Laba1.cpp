@@ -11,9 +11,10 @@ int main()
     int random_number = rand() % 100;
     byte* random_data_generate = (byte*)malloc(random_number);
     HCRYPTPROV hprov;
-
+    /*
+        Используется CRYPT_VERIFYCONTEXT, так как с 0 не работает
+    */
     CryptAcquireContext(&hprov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT); 
-    //используется CRYPT_VERIFYCONTEXT, так как с 0 не работает
     CryptGenRandom(hprov, random_number, random_data_generate);
 
     printf("Произвольная строка длины: %d\n", random_number);
