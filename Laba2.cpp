@@ -39,7 +39,6 @@ int main()
     CryptCreateHash(hprov, CALG_MD5, 0, 0, &hcrypt);
     CryptHashData(hcrypt, byte_data, len, 0);
     CryptGetHashParam(hcrypt, HP_HASHVAL, pb_data, &len, 0);
-    std::cout << hcrypt << "\n";
     printf("Хэш-значение данных в файле hello.txt:\n");
     for (int i = 0; i < 97; i++) {
         if (pb_data[i] == 0 &&
