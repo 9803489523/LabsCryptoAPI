@@ -1,34 +1,79 @@
-﻿#include <iostream>
+﻿#define _CRT_SECURE_NO_WARNINGS 1
+
+#include <iostream>
 #include <fstream>
 #include <string>
 #include <Windows.h>
 #include <Wincrypt.h>
 #include <stdlib.h> 
 
-int main() {
+#define DEBUG
+
+void funcDebug(bool func);
+
+void containerFillIn(LPCWSTR* container);
+
+int main()
+{
     setlocale(LC_ALL, "rus");
-    HCRYPTPROV hprov;
-    HCRYPTKEY hkey;
-    HCRYPTKEY hsign;
 
-    CryptAcquireContext(&hprov, NULL, MS_DEF_PROV, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT);
-    /*
-        Генерация ключа и цифровой подписи
-    */
-    CryptGenKey(hprov, AT_KEYEXCHANGE, NULL, &hkey);
-    CryptGenKey(hprov, AT_SIGNATURE, NULL, &hsign);
-    /*
-        Получение ключа и цифровой подписи
-    */
-    CryptGetUserKey(hprov, AT_KEYEXCHANGE, &hkey);
-    CryptGetUserKey(hprov, AT_SIGNATURE, &hsign);
+    HCRYPTPROV prov;
+    HCRYPTKEY key;
+    LPCWSTR keyContainer;
+    char* str;
+    bool res;
 
-    std::cout << "Ключ: " << hkey << "\n";
-    std::cout << "Цифровая подпись: " << hsign << "\n";
-    /*
-        Удаление ключей и контейнера
-    */
-    CryptDestroyKey(hkey);
-    CryptDestroyKey(hsign);
-    CryptReleaseContext(hprov, 0);
+    containerFillIn(&keyContainer);
+
+    res = CryptAcquireContext(&prov, keyContainer, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET);
+
+#ifdef DEBUG
+    funcDebug(res);
+#endif
+
+    if (res) {
+#ifdef DEBUG
+        funcDebug(
+#endif
+            CryptGenKey(prov, AT_SIGNATURE, CRYPT_EXPORTABLE, &key)
+#ifdef DEBUG
+        )
+#endif
+            ;
+        printf("Сгенерирован новый контейнер '%s' с ключом: %X\n", keyContainer, key);
+    }
+    else {
+        if (GetLastError() == NTE_EXISTS) {
+            CryptAcquireContext(&prov, keyContainer, NULL, PROV_RSA_FULL, CRYPT_SILENT);
+#ifdef DEBUG
+            funcDebug(
+#endif
+                CryptGetUserKey(prov, AT_SIGNATURE, &key)
+#ifdef DEBUG
+            )
+#endif
+                ;
+            printf("Контейнер '%s' существует, извлечение ключа: %X\n", keyContainer, key);
+        }
+    }
+
+    CryptDestroyKey(key);
+    CryptReleaseContext(prov, 0);
+    system("pause");
+}
+
+void funcDebug(bool func) {
+    if (func) {
+        printf("Success\n");
+    }
+    else {
+        printf("Failed with error: %X\n", GetLastError());
+    }
+}
+
+void containerFillIn(LPCWSTR* container) {
+    const char* str = (char*)malloc(100);
+    printf("Введите название контейнера: ");
+    scanf("%s", str);
+    *container = (LPCWSTR)str;
 }
