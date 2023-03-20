@@ -1,79 +1,112 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS 1
-
+#include <stdio.h>
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <Windows.h>
 #include <Wincrypt.h>
-#include <stdlib.h> 
+#include <stdlib.h>
 
-#define DEBUG
+//#define DEBUG
 
-void funcDebug(bool func);
+typedef struct {
+    char* provFullName;
+    wchar_t* provPsevdonim;
+    int provType;
+} Provider;
 
-void containerFillIn(LPCWSTR* container);
+void getProviders(Provider* providers, int* len);
+
+void printProvider(Provider provider);
+
+void menuCryptoProviders(Provider* providers, Provider* provider, int len);
 
 int main()
 {
     setlocale(LC_ALL, "rus");
 
     HCRYPTPROV prov;
-    HCRYPTKEY key;
-    LPCWSTR keyContainer;
-    char* str;
-    bool res;
+    Provider provGet;
+    Provider* providers;
+    int lenProviders;
+    byte* containerName = (byte*)malloc(1000);
+    DWORD containerNameLength;
 
-    containerFillIn(&keyContainer);
+    providers = (Provider*)malloc(1000);
 
-    res = CryptAcquireContext(&prov, keyContainer, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET);
+    getProviders(providers, &lenProviders);
+
+    menuCryptoProviders(providers, &provGet, lenProviders);
+
+    CryptAcquireContext(&prov, NULL, provGet.provPsevdonim, provGet.provType, CRYPT_VERIFYCONTEXT);
+
+    int cnt = 0;
+    bool res = CryptGetProvParam(prov, PP_ENUMCONTAINERS, containerName, &containerNameLength, CRYPT_FIRST);
+    int err = GetLastError();
 
 #ifdef DEBUG
-    funcDebug(res);
-#endif
+    printf("res = %d, error: %X\n", res, err);
+#endif // DEBUG
 
-    if (res) {
-#ifdef DEBUG
-        funcDebug(
-#endif
-            CryptGenKey(prov, AT_SIGNATURE, CRYPT_EXPORTABLE, &key)
-#ifdef DEBUG
-        )
-#endif
-            ;
-        printf("Сгенерирован новый контейнер '%s' с ключом: %X\n", keyContainer, key);
-    }
-    else {
-        if (GetLastError() == NTE_EXISTS) {
-            CryptAcquireContext(&prov, keyContainer, NULL, PROV_RSA_FULL, CRYPT_SILENT);
-#ifdef DEBUG
-            funcDebug(
-#endif
-                CryptGetUserKey(prov, AT_SIGNATURE, &key)
-#ifdef DEBUG
-            )
-#endif
-                ;
-            printf("Контейнер '%s' существует, извлечение ключа: %X\n", keyContainer, key);
-        }
+    if (err == 259) {
+        printf("Список криптоконтейнеров пуст\n");
+        goto exit;
     }
 
-    CryptDestroyKey(key);
-    CryptReleaseContext(prov, 0);
+    while (CryptGetProvParam(prov, PP_ENUMCONTAINERS, containerName, &containerNameLength, CRYPT_NEXT)) {
+        printf("\t%d). %s\n", cnt + 1, (wchar_t*)containerName);
+        cnt++;
+    }NTE_BAD_DATA;
+exit:
     system("pause");
+
 }
 
-void funcDebug(bool func) {
-    if (func) {
-        printf("Success\n");
+void getProviders(Provider* providers, int* len) {
+    DWORD index = 0;
+    DWORD type;
+    LPSTR fullName;
+    LPWSTR psevdonim;
+    DWORD fullNameLength;
+    DWORD psevdonimLength;
+    while (CryptEnumProvidersA(index, NULL, 0, &type, NULL, &fullNameLength) &&
+        CryptEnumProvidersW(index, NULL, 0, &type, NULL, &psevdonimLength)) {
+
+        fullName = (LPSTR)malloc(fullNameLength);
+        psevdonim = (LPWSTR)malloc(psevdonimLength);
+
+        CryptEnumProvidersA(index, NULL, 0, &type, fullName, &fullNameLength);
+        CryptEnumProvidersW(index, NULL, 0, &type, psevdonim, &psevdonimLength);
+
+        if (len != 0) {
+            providers[index].provFullName = fullName;
+            providers[index].provPsevdonim = psevdonim;
+            providers[index].provType = type;
+        }
+
+        index++;
+    }
+
+    *len = index;
+}
+
+void printProvider(Provider provider) {
+    printf("%s, %X, %d\n", provider.provFullName, provider.provPsevdonim, provider.provType);
+}
+
+void menuCryptoProviders(Provider* providers, Provider* provider, int len) {
+    int choose;
+    printf("Длина списка: %d\n", len);
+    printf("Выберите криптопровайдера из списка: \n");
+    for (int i = 0; i < len; i++) {
+        printf("\t%d). %s\n", i + 1, providers[i].provFullName);
+    }
+    scanf("%d", &choose);
+    if (choose < 0 || choose > len) {
+        printf("Некорректный ввод, сделайте выбор заново!");
+        menuCryptoProviders(providers, provider, len);
     }
     else {
-        printf("Failed with error: %X\n", GetLastError());
+        *provider = providers[choose - 1];
     }
-}
-
-void containerFillIn(LPCWSTR* container) {
-    const char* str = (char*)malloc(100);
-    printf("Введите название контейнера: ");
-    scanf("%s", str);
-    *container = (LPCWSTR)str;
 }
